@@ -1,34 +1,38 @@
 import pandas as pd
 
+
 def create_features(sales_data):
-    # avg demand per city and category
-    sales_data["avg_units_city"] = (
-        sales_data.groupby(["City", "Category"])["Units"]
-        .transform("mean")
+    sales_data = sales_data.copy()
+
+    sales_data = sales_data.sort_values(
+        ["Store ID", "Product ID", "Date"]
+    ).reset_index(drop=True)
+
+    group = sales_data.groupby(["Store ID", "Product ID"])
+
+    # Previous day's sales
+    sales_data["Previous_Day_Sales"] = (
+        group["Units Sold"].shift(1)
     )
 
-    # inventory coverage
-    sales_data["inventory_days_left"] = (
-        sales_data["Stock_On_Hand"] / (sales_data["avg_units_city"] + 1)
+    # 7-day average sales using previous days only
+    sales_data["Avg_7_Day_Sales"] = (
+        group["Units Sold"]
+        .transform(lambda x: x.shift(1).rolling(7).mean())
     )
 
-    # demand velocity
-    sales_data["demand_velocity"] = (
-        sales_data["Units"] / (sales_data["inventory_days_left"] + 1)
+    # Previous day's demand
+    sales_data["Previous_Day_Demand"] = (
+        group["Demand"].shift(1)
     )
+
+    # Remove rows where historical features are unavailable
+    sales_data = sales_data.dropna(
+        subset=[
+            "Previous_Day_Sales",
+            "Avg_7_Day_Sales",
+            "Previous_Day_Demand"
+        ]
+    ).copy()
+
     return sales_data
-
-def encode_features(sales_data):
-    X = sales_data.drop("StockoutRisk_flag", axis=1)
-    y = sales_data["StockoutRisk_flag"]
-
-    # one hot encoding
-    X_encoded = pd.get_dummies(X, drop_first=True)
-
-    # remove leakage columns
-    X_encoded = X_encoded.drop(
-        ["Stock_On_Hand", "Reorder_Level"],
-        axis=1,
-        errors="ignore"
-    )
-    return X_encoded, y

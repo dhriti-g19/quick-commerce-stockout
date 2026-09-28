@@ -4,86 +4,71 @@ import pandas as pd
 from sklearn.metrics import (
     classification_report,
     confusion_matrix,
-    roc_curve,
-    auc,
-    precision_recall_curve,
-    accuracy_score
+    precision_score,
+    recall_score,
+    f1_score,
+    average_precision_score,
+    precision_recall_curve
 )
 
-# basic evaluation
-def evaluate_model(forest_model, X, y):
-    y_pred = forest_model.predict(X)
+
+def evaluate_model(model, X_test, y_test, threshold=0.5):
+    y_prob = model.predict_proba(X_test)[:, 1]
+    y_pred = (y_prob >= threshold).astype(int)
+
     print("\nModel evaluation")
+    print(f"Threshold: {threshold}")
 
-    print("\nAccuracy: ")
-    print(accuracy_score(y, y_pred))
-
-    print("\nPrediction results")
-    print(confusion_matrix(y, y_pred))
+    print("\nConfusion matrix")
+    print(confusion_matrix(y_test, y_pred))
 
     print("\nClassification report")
-    print(classification_report(y, y_pred))
+    print(classification_report(y_test, y_pred))
 
-# feature importance from random forest
+    print("\nMetrics")
+    print(f"Precision: {precision_score(y_test, y_pred):.3f}")
+    print(f"Recall:    {recall_score(y_test, y_pred):.3f}")
+    print(f"F1:        {f1_score(y_test, y_pred):.3f}")
+    print(f"PR-AUC:    {average_precision_score(y_test, y_prob):.3f}")
+
+    return y_prob, y_pred
+
+
 def plot_feature_importance(forest_model, X):
     feature_importances = pd.Series(
         forest_model.feature_importances_,
         index=X.columns
-    )
+    ).sort_values(ascending=False)
 
-    feature_importances = feature_importances.sort_values(ascending=False)
     print("\nTop 10 important features")
     print(feature_importances.head(10))
-    plt.figure(figsize=(10, 6))
 
+    plt.figure(figsize=(10, 6))
     feature_importances.head(10).plot(kind="bar")
 
-    plt.title("Top stockout risk features")
+    plt.title("Top stockout prediction features")
     plt.xlabel("Features")
     plt.ylabel("Importance")
 
     plt.xticks(rotation=45, ha="right")
-    plt.grid(True)
     plt.tight_layout()
     plt.show()
 
-# ROC curve
-def plot_roc_curve(forest_model, X, y):
-    y_prob = forest_model.predict_proba(X)[:, 1]
-    fpr, tpr, thresholds = roc_curve(y, y_prob)
-    roc_auc = auc(fpr, tpr)
 
-    plt.figure(figsize=(8, 6))
-    plt.plot(fpr, tpr, label=f"AUC = {roc_auc:.2f}")
-    plt.plot([0, 1], [0, 1], "--")
-    plt.xlabel("False positive rate")
-    plt.ylabel("True positive rate")
-    plt.title("ROC Curve")
-    plt.grid(True)
-    plt.legend()
-    plt.show()
+def plot_precision_recall(model, X_test, y_test):
+    y_prob = model.predict_proba(X_test)[:, 1]
 
-# precision recall curve
-def plot_precision_recall(forest_model, X, y):
-    y_prob = forest_model.predict_proba(X)[:, 1]
-    precision, recall, thresholds = precision_recall_curve(y, y_prob)
+    precision, recall, _ = precision_recall_curve(
+        y_test,
+        y_prob
+    )
 
     plt.figure(figsize=(8, 6))
     plt.plot(recall, precision)
+
     plt.xlabel("Recall")
     plt.ylabel("Precision")
     plt.title("Precision-Recall Curve")
     plt.grid(True)
+    plt.tight_layout()
     plt.show()
-
-# try different probability threshold
-def threshold_tuning(forest_model, X, y, threshold=0.3):
-    y_prob = forest_model.predict_proba(X)[:, 1]
-    y_pred = (y_prob >= threshold).astype(int)
-
-    print(f"\nResults with threshold = {threshold}")
-    print("\nPrediction results")
-    print(confusion_matrix(y, y_pred))
-
-    print("\nClassification report")
-    print(classification_report(y, y_pred))
